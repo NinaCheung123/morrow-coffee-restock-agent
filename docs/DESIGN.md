@@ -49,7 +49,8 @@ buyer gets the deal without the inbox. **[assumed: not tested with any real roas
 
 - **[verified, 12 Nov 18:05 UTC]** The sandbox accepted a request to start saving a PayPal payment method (HTTP 201, waiting for the buyer's consent).
 - **[not verified]** A charge with the buyer absent. Until it is, no screen or sentence may call a purchase "automatic".
-- **[not verified]** A captured order with the roaster as receiver, read back from PayPal.
+- **[verified, 12 Nov 18:47 UTC]** A buyer-approved sandbox order was captured once for $36.00 with the connected merchant account as receiver. An independent read of the order from PayPal matched the app's receipt on status (COMPLETED), amount, currency, receiver and capture ID.
+- **[verified, 12 Nov]** The Claude API reads the request and returns structured facts; code turns them into bags and a delivery limit.
 - **[assumed]** A saved payment method belongs to one merchant, so it cannot be reused across roasters without PayPal's platform onboarding.
 - PayPal's agentic commerce services need an access request and are not used.
 
