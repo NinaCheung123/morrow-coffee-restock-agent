@@ -23,7 +23,7 @@ export interface Suggestion {
 const GRAMS_PER_CUP = 15;   // stated assumption, shown to the buyer
 const BAG_GRAMS = 250;
 const COVER_DAYS = 21;      // suggest roughly three weeks of coffee
-const DELIVERY_OPTIONS = [3, 7, 14];
+const MAX_BAGS = 8, MAX_DELIVERY_DAYS = 30;
 
 /** Code, not the model, turns the reading into numbers. Exported for tests. */
 export function toSuggestion(r: Reading): Suggestion {
@@ -34,12 +34,12 @@ export function toSuggestion(r: Reading): Suggestion {
   const lo = r.cupsPerDayMin ?? r.cupsPerDayMax, hi = r.cupsPerDayMax ?? r.cupsPerDayMin;
   if (lo != null && hi != null && lo > 0 && hi >= lo && hi <= 20) {
     const gramsPerDay = ((lo + hi) / 2) * GRAMS_PER_CUP;
-    quantity = Math.min(4, Math.max(1, Math.round((gramsPerDay * COVER_DAYS) / BAG_GRAMS)));
+    quantity = Math.min(MAX_BAGS, Math.max(1, Math.round((gramsPerDay * COVER_DAYS) / BAG_GRAMS)));
     reasoning.push(`About ${Math.round(gramsPerDay)} g a day (assuming ${GRAMS_PER_CUP} g per cup), so ${quantity} × ${BAG_GRAMS} g lasts about ${Math.round((quantity * BAG_GRAMS) / gramsPerDay)} days.`);
   } else reasoning.push("Cups per day were not clear, so 2 bags is only a starting point.");
   let deliveryDays = 14;
   if (r.daysOfCoffeeLeft != null && r.daysOfCoffeeLeft > 0) {
-    deliveryDays = [...DELIVERY_OPTIONS].reverse().find(d => d <= r.daysOfCoffeeLeft!) ?? DELIVERY_OPTIONS[0];
+    deliveryDays = Math.min(MAX_DELIVERY_DAYS, Math.max(1, Math.floor(r.daysOfCoffeeLeft)));
     reasoning.push(`You have about ${Math.round(r.daysOfCoffeeLeft)} days of coffee left, so it should arrive within ${deliveryDays} days.`);
   } else reasoning.push("No stock level given, so the delivery limit stays at 14 days.");
   reasoning.push("Prices, your good-deal target and your maximum are yours to set. The AI never proposes them.");

@@ -63,9 +63,9 @@ export function validateRules(input: Rules): Rules {
   if (!["auto", "confirm"].includes(r.mode)) throw new RestockError("Choose a purchase mode.");
   if (!Array.isArray(r.brandIds) || !r.brandIds.length || r.brandIds.some(x => !BRANDS.some(b => b.id === x))) throw new RestockError("Approve at least one demo roaster.");
   if (!Array.isArray(r.productIds) || !r.productIds.length || r.productIds.some(x => !PRODUCTS.some(p => p.id === x && r.brandIds.includes(p.brand)))) throw new RestockError("Approve products from your selected roasters.");
-  if (!Number.isInteger(r.quantity) || r.quantity < 1 || r.quantity > 4) throw new RestockError("Confirm 1–4 bags; cups per day cannot determine an exact quantity.");
+  if (!Number.isInteger(r.quantity) || r.quantity < 1 || r.quantity > 8) throw new RestockError("Choose 1 to 8 bags.");
   assertCents(r.targetCents); assertCents(r.capCents);
-  if (r.targetCents < 100 || r.capCents > 10000 || r.targetCents > r.capCents) throw new RestockError("Target must be between $1 and your maximum; maximum is $100 for this demo.");
+  if (r.targetCents < 100 || r.capCents > 20000 || r.targetCents > r.capCents) throw new RestockError("Target must be between $1 and your maximum; maximum is $200 for this demo.");
   if (!Number.isInteger(r.deliveryDays) || r.deliveryDays < 1 || r.deliveryDays > 30) throw new RestockError("Delivery window must be 1–30 days.");
   if (r.region !== "US-CA" || r.currency !== "USD" || r.oneTime !== true) throw new RestockError("This sandbox supports one-time purchases in California, USD only.");
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(r.notificationTime)) throw new RestockError("Choose a valid update time.");

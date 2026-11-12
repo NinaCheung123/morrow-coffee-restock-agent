@@ -40,7 +40,7 @@ test("an expired or tampered quote is rejected", () => {
 
 test("the target can't exceed the maximum, and the maximum is capped", () => {
   assert.throws(() => validateRules(rules({ targetCents: 5000, capCents: 4500 })));
-  assert.throws(() => validateRules(rules({ capCents: 20000 })));
+  assert.throws(() => validateRules(rules({ capCents: 30000 })));
 });
 
 test("the AI reading becomes numbers in code, and unknown products are dropped", () => {
@@ -57,5 +57,5 @@ test("an unclear reading falls back to safe defaults", () => {
   const s = toSuggestion({ understood: "", cupsPerDayMin: null, cupsPerDayMax: null, daysOfCoffeeLeft: 5,
     productIds: [], wantsAutomaticPurchase: false, unsure: [] });
   assert.equal(s.quantity, 2);
-  assert.equal(s.deliveryDays, 3);
+  assert.equal(s.deliveryDays, 5);
 });

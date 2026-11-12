@@ -63,7 +63,7 @@ npm run typecheck
   merchant. A real multi-roaster product needs PayPal's platform onboarding.
 - PayPal's agentic commerce services need an access request and are not used here.
 - Refunds, disputes and delivery problems are not built.
-- One region and currency (California, USD), up to 4 bags, a $100 demo maximum.
+- One region and currency (California, USD), 1 to 8 bags, delivery within 1 to 30 days, a $200 demo maximum.
 
 ## License
 
