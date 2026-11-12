@@ -11,5 +11,7 @@ services:
         sync: false
       - key: PAYPAL_SANDBOX_CLIENT_SECRET
         sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
       - key: PUBLIC_URL
         sync: false

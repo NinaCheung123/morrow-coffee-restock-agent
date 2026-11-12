@@ -86,4 +86,4 @@ for (const path of ["return", "vault-return", "cancel"]) {
 app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   res.status(error instanceof RestockError ? 409 : 502).json({ error: error instanceof RestockError ? error.message : "This action could not be completed. Check the task status before retrying." });
 });
-app.listen(port, "127.0.0.1", () => { console.log(`Coffee restock sandbox: ${publicUrl}`); });
+app.listen(port, process.env.HOST ?? (process.env.RENDER ? "0.0.0.0" : "127.0.0.1"), () => { console.log(`Coffee restock sandbox: ${publicUrl}`); });
