@@ -1,4 +1,4 @@
-# Design: one-time coffee restock agent ("deals without the inbox")
+# Design: Pip Buy, a one-time coffee restock agent ("deals without the inbox")
 
 Status: written Thu 12 Nov 2026, 19:20 Zurich. Hackathon: "Build What's Next with PayPal and AI" (Devpost).
 Every claim is tagged **[verified]**, **[assumed]** or **[simulated]**. Nothing here has real customers or real merchants.

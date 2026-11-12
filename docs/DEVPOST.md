@@ -1,7 +1,7 @@
 # Devpost submission text (draft, paste into the form)
 
 ## Project name
-Morrow: deals without the inbox
+Pip Buy: deals without the inbox
 
 ## Tagline
 Tell an agent what coffee you need. It gets a private one-time offer from roasters and pays through PayPal. No

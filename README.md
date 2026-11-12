@@ -1,4 +1,4 @@
-# Morrow: deals without the inbox
+# Pip Buy: deals without the inbox
 
 A one-time coffee restock agent. You say what you drink and set your limits. Your buyer agent asks roasters'
 agents for a private one-time offer, checks every term in code, and pays the roaster through PayPal. No mailing
