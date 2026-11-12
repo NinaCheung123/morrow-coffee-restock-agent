@@ -97,7 +97,7 @@ export function checkOffer(r: StayRules, o: Offer, daysToCheckIn: number, now = 
   if (h && r.mustHaves.some(a => !h.amenities.includes(a))) reasons.push("Missing a must-have: " + r.mustHaves.filter(a => !h.amenities.includes(a)).map(a => AMENITIES[a]).join(", "));
   if ([o.nightCents, o.subtotalCents, o.taxCents, o.totalCents, o.lateFeeCents].some(x => !Number.isSafeInteger(x) || x < 0)) reasons.push("Unknown or invalid amounts");
   if (o.subtotalCents !== o.nightCents * o.nights || o.totalCents !== o.subtotalCents + o.taxCents) reasons.push("Offer does not add up");
-  if (o.totalCents <= 0 || o.totalCents > r.capCents) reasons.push("Above your maximum");
+  if (o.totalCents <= 0 || o.totalCents > r.capCents) reasons.push("Whole-stay total is above your maximum");
   if (o.currency !== "USD") reasons.push("Currency mismatch");
   if (o.daysToCheckIn !== daysToCheckIn) reasons.push("Offer is from an earlier day; ask again");
   if (!Number.isFinite(Date.parse(o.expiresAt)) || Date.parse(o.expiresAt) <= now) reasons.push("Offer expired; ask again");
