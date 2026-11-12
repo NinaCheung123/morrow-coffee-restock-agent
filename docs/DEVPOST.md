@@ -56,3 +56,18 @@ TypeScript, Node.js, Express, PayPal Orders API v2, PayPal Vault API v3, PayPal 
 
 ## Testing instructions (Devpost field, not public)
 Paste here: the repository's run steps, and the email and password of a PayPal **sandbox buyer** account.
+
+## Additional info page (answers for the form)
+
+- **Submitter type:** Individual
+- **Canada province / Organization name:** N/A
+- **New or existing:** New. **If it existed before:** N/A
+- **How the project meets the technology requirement:**
+  PayPal developer platform (sandbox): Orders API v2 creates the order with the roaster's merchant account as receiver, the buyer approves it in PayPal checkout, the app captures it, then reads the order back and compares status, amount, currency and receiver with the quote before showing a receipt. Every request carries a PayPal-Request-Id so a retry can't charge twice. The Vault API v3 (setup tokens) is wired for the "buy once automatically" mode; the sandbox accepted the setup request, but a charge with the buyer absent is not claimed as verified.
+  AI: the Claude API (model claude-opus-5-5, structured output) reads the buyer's plain-language request and extracts cups per day, stock left and taste, and picks matching catalog products. Code turns that into bags and a delivery limit. The AI never proposes a price or a payment limit, and the buyer confirms everything. Roaster quotes come from fixed rules, not from a model.
+- **Additional sponsor tools:** None, used other AI tools.
+- **Repository:** https://github.com/NinaCheung123/morrow-coffee-restock-agent
+- **Working demo URL:** not marked required. Leave empty unless the app is hosted.
+- **Testing instructions:** Clone the repository and follow "Run it locally" in the README (Node.js 20.12+, a PayPal sandbox app's client ID and secret, and a Claude API key in `.env.sandbox`, then `npm install` and `npm start`, open http://localhost:4030). To pay, sign in on PayPal's page with a sandbox personal account. [Add your sandbox buyer email and password here only.]
+- **AI tools leveraged while working:** Claude Code (design, code, tests, documentation) and the Claude API inside the product. [Add any other tool you used.]
+- **Yours to answer:** country of residence, PayPal experience rating and reason, contact permission, the three eligibility boxes, level of learning, AI career value.
