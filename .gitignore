@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+sandbox-test-result.json
+.gate-state.json
+node_modules/
+dist/
+.DS_Store
+Three Rails*.md
+paypal_sandbox_preflight.py
+data/
