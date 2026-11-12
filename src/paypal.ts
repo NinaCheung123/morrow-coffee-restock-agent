@@ -184,6 +184,27 @@ export class PayPalClient {
     await this.request("POST", `/v2/payments/authorizations/${authorizationId}/void`, undefined, requestId);
   }
 
+  /** A hold on the buyer's funds with the hotel as receiver. Captured, voided or refunded later. */
+  async createStayOrder(input: { reference: string; cents: number; description: string; returnUrl: string; cancelUrl: string; requestId: string }): Promise<any> {
+    return this.request("POST", "/v2/checkout/orders", {
+      intent: "AUTHORIZE",
+      purchase_units: [{ reference_id: input.reference, custom_id: input.reference, description: input.description.slice(0, 127),
+        amount: { currency_code: "USD", value: centsToUsd(input.cents) } }],
+      payment_source: { paypal: { experience_context: {
+        return_url: input.returnUrl, cancel_url: input.cancelUrl, user_action: "CONTINUE", shipping_preference: "NO_SHIPPING",
+      } } },
+    }, input.requestId);
+  }
+
+  async getAuthorization(id: string): Promise<any> { return this.request("GET", `/v2/payments/authorizations/${encodeURIComponent(id)}`); }
+  async getCapture(id: string): Promise<any> { return this.request("GET", `/v2/payments/captures/${encodeURIComponent(id)}`); }
+
+  /** Full or partial refund of a captured payment. */
+  async refundCapture(captureId: string, cents: number, requestId: string, note: string): Promise<any> {
+    return this.request("POST", `/v2/payments/captures/${encodeURIComponent(captureId)}/refund`,
+      { amount: { currency_code: "USD", value: centsToUsd(cents) }, note_to_payer: note.slice(0, 255) }, requestId);
+  }
+
   async createPayout(input: {
     senderBatchId: string;
     senderItemId: string;

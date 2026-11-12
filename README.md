@@ -1,12 +1,22 @@
-# Pip Buy: deals without the inbox
+# Pip Buy: you set the terms, merchants make offers
 
-A one-time coffee restock agent. You say what you drink and set your limits. Your buyer agent asks roasters'
-agents for a private one-time offer, checks every term in code, and pays the roaster through PayPal. No mailing
-list, no subscription, one purchase, then the task closes.
+Pip is a buying agent. You describe what you need and what you would pay. Pip asks merchants' agents for private
+offers, checks every term in code, and you pay the merchant directly through PayPal. Merchants never see your target
+or your maximum.
 
-Built for the Devpost hackathon "Build What's Next with PayPal and AI".
+Two demos share one codebase:
 
-## What is real and what is simulated
+| Demo | Page | What it shows |
+|---|---|---|
+| **Stays** (newer) | `/stay.html`, hotel side at `/hotel.html` | Three simulated Lisbon hotels answer each round with a private rate that falls as check-in approaches. Offers appear side by side per round. Payment follows the booking: hold, capture at check-in, void on free cancellation, late fee, full or partial refund. |
+| **Coffee** (hackathon version, tag `coffee-v1`) | `/`, roaster side at `/roaster.html` | A one-time coffee restock with two simulated roasters, ask-again rounds and a single buyer-approved payment. |
+
+The payment design, the state machine and what is proven live are in [docs/PAYMENTS.md](docs/PAYMENTS.md).
+All merchants and offers are simulated. Every PayPal call is a real **sandbox** call. There are no real customers.
+
+## Coffee demo in detail
+
+### What is real and what is simulated
 
 | Part | Status |
 |---|---|
@@ -24,7 +34,7 @@ Built for the Devpost hackathon "Build What's Next with PayPal and AI".
 There are no real customers and no real merchants. See [docs/DESIGN.md](docs/DESIGN.md) for the product
 decisions and what is unverified.
 
-## How it works
+### How it works
 
 1. The buyer describes the restock and confirms a short rule card: products, bags, roasters, a good-deal target,
    a hard maximum including tax and shipping, a delivery deadline, and one-time only.

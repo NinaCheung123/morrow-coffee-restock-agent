@@ -2,7 +2,8 @@ import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import express from "express";
-import { interpret, modelConfigured } from "./interpret.js";
+import { interpret, interpretStay, modelConfigured } from "./interpret.js";
+import { AMENITIES, CITY, HONOR_DAYS, HOTELS, StayError, StayService, StayStore, getHotelRules, hotelView, loadHotelRules, nightlyOfferCents, publicStay, resetHotelRules, setHotelRule } from "./stay.js";
 import { PayPalClient } from "./paypal.js";
 import { readFileSync, writeFileSync } from "node:fs";
 import { BRANDS, PRODUCTS, RestockError, RestockService, RestockStore, getOfferRules, loadOfferRules, publicTask, resetOfferRules, roasterInbox, setOfferRule } from "./restock.js";
@@ -16,6 +17,8 @@ const publicUrl = (process.env.PUBLIC_URL || `http://localhost:${port}`).replace
 const paypal = new PayPalClient({ clientId, clientSecret });
 const store = new RestockStore(join(process.env.DATA_DIR ?? "data", "coffee-tasks.json"));
 const service = new RestockService(store, paypal, publicUrl);
+const stayStore = new StayStore(join(process.env.DATA_DIR ?? "data", "stay-tasks.json"));
+const stays = new StayService(stayStore, paypal, publicUrl);
 const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "15kb" }));
@@ -93,7 +96,69 @@ for (const path of ["return", "vault-return", "cancel"]) {
     } catch { res.redirect(`/?task=${id}&notice=review`); }
   });
 }
+// ---- Hotel stays ----
+const hotelRulesPath = join(process.env.DATA_DIR ?? "data", "hotel-rules.json");
+if (existsSync(hotelRulesPath)) try { loadHotelRules(JSON.parse(readFileSync(hotelRulesPath, "utf8"))); } catch { /* start from defaults */ }
+const saveHotelRules = () => writeFileSync(hotelRulesPath, JSON.stringify(getHotelRules()), { mode: 0o600 });
+const PREVIEW_DAYS = [30, 21, 14, 10, 7, 5, 3, 1, 0];
+const hotelsView = () => HOTELS.map(h => { const rule = getHotelRules()[h.id]; return { id: h.id, name: h.name, connected: h.connected, stars: h.stars, simulated: true,
+  listCents: h.listCents, taxBps: h.taxBps, amenities: h.amenities.map(a => AMENITIES[a]), rule,
+  preview: PREVIEW_DAYS.map(d => ({ days: d, nightCents: nightlyOfferCents(h.listCents, rule, d) })), ...hotelView(stayStore.all(), h.id) }; });
+app.get("/api/stay-config", (_req, res) => { res.json({ city: CITY, honorDays: HONOR_DAYS, amenities: AMENITIES, modelConnected: modelConfigured(),
+  hotels: HOTELS.map(h => ({ id: h.id, name: h.name, connected: h.connected, stars: h.stars, listCents: h.listCents, amenities: h.amenities })) }); });
+app.post("/api/stay-interpret", async (req, res) => {
+  if (!modelConfigured()) { res.status(503).json({ error: "AI reading is not connected. Fill in the details yourself." }); return; }
+  const text = typeof req.body?.request === "string" ? req.body.request.trim() : "";
+  if (!text || text.length > 2500) throw new StayError("Describe the stay you want first.");
+  if (Date.now() - aiWindow > 3600000) { aiWindow = Date.now(); aiCalls = 0; }
+  if (++aiCalls > 60) { res.status(429).json({ error: "Demo AI limit reached. Fill in the details yourself or try again in an hour." }); return; }
+  try { res.json(await interpretStay(text)); }
+  catch { res.status(502).json({ error: "The AI could not read this request. Fill in the details yourself." }); }
+});
+app.post("/api/stays", (req, res) => {
+  if (Date.now() - rateWindow > 3600000) { rateWindow = Date.now(); created = 0; }
+  if (++created > 30) { res.status(429).json({ error: "Demo limit reached. Try again in an hour." }); return; }
+  if (req.body?.confirmed !== true) throw new StayError("Confirm your booking rules first.");
+  res.status(201).json(publicStay(stays.create(res.locals.owner, req.body.rules)));
+});
+app.get("/api/stays", (_req, res) => { res.json(stayStore.all().filter(t => t.owner === res.locals.owner).map(publicStay)); });
+app.use("/api/stays/:id", (req, res, next) => {
+  const t = stayStore.get(req.params.id);
+  if (!t || t.owner !== res.locals.owner) { res.status(404).json({ error: "Booking not found in this browser session." }); return; }
+  next();
+});
+app.get("/api/stays/:id", (req, res) => { res.json(publicStay(stayStore.get(req.params.id)!)); });
+app.post("/api/stays/:id/ask", async (req, res) => { res.json(publicStay(await stays.ask(req.params.id, Number(req.body?.waitDays ?? 0)))); });
+app.post("/api/stays/:id/book", async (req, res) => { res.json(publicStay(await stays.book(req.params.id))); });
+app.post("/api/stays/:id/check", async (req, res) => { res.json(publicStay(await stays.finishApproval(req.params.id))); });
+app.post("/api/stays/:id/advance", async (req, res) => { res.json(publicStay(await stays.advance(req.params.id, Number(req.body?.days)))); });
+app.post("/api/stays/:id/checkin", async (req, res) => { res.json(publicStay(await stays.checkIn(req.params.id))); });
+app.post("/api/stays/:id/cancel", async (req, res) => { res.json(publicStay(await stays.cancel(req.params.id, "guest"))); });
+app.get("/api/hotels", (_req, res) => { res.json(hotelsView()); });
+app.post("/api/hotels/reset", (_req, res) => { resetHotelRules(); saveHotelRules(); res.json(hotelsView()); });
+app.post("/api/hotels/:id", (req, res) => { setHotelRule(req.params.id, req.body); saveHotelRules(); res.json(hotelsView()); });
+// Hotel-side actions on a booking. The demo has no hotel sign-in, so anyone using it can press these.
+app.post("/api/hotels/:id/bookings/:taskId/:action", async (req, res) => {
+  const t = stayStore.get(req.params.taskId);
+  if (!t || t.bookedOffer?.hotelId !== req.params.id) { res.status(404).json({ error: "Booking not found for this hotel." }); return; }
+  if (req.params.action === "checkin") await stays.checkIn(t.id);
+  else if (req.params.action === "cancel") await stays.cancel(t.id, "hotel");
+  else { res.status(404).json({ error: "Unknown action" }); return; }
+  res.json(hotelsView());
+});
+for (const path of ["stay-return", "stay-cancel"]) {
+  app.get(`/paypal/${path}`, async (req, res) => {
+    const id = typeof req.query.task === "string" ? req.query.task : "";
+    const t = stayStore.get(id);
+    if (!t || t.owner !== res.locals.owner || req.query.state !== t.callbackState) { res.status(403).send("Return to the browser session where you started your booking."); return; }
+    try {
+      if (path === "stay-cancel") await stays.cancel(id, "guest");
+      else { if (req.query.token !== t.orderId) throw new StayError("Order mismatch"); await stays.finishApproval(id); }
+      res.redirect(`/stay.html?task=${id}`);
+    } catch { res.redirect(`/stay.html?task=${id}&notice=review`); }
+  });
+}
 app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  res.status(error instanceof RestockError ? 409 : 502).json({ error: error instanceof RestockError ? error.message : "This action could not be completed. Check the task status before retrying." });
+  res.status(error instanceof RestockError || error instanceof StayError ? 409 : 502).json({ error: error instanceof RestockError || error instanceof StayError ? error.message : "This action could not be completed. Check the task status before retrying." });
 });
 app.listen(port, process.env.HOST ?? (process.env.RENDER ? "0.0.0.0" : "127.0.0.1"), () => { console.log(`Coffee restock sandbox: ${publicUrl}`); });

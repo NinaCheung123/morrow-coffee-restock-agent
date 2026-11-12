@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pip Buy — stays</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<header><a href="/stay.html" class="wordmark">pip buy<span>●</span></a><div class="header-right"><nav class="nav"><a href="/stay.html" class="on">Stays</a><a href="/">Coffee</a><a href="/hotel.html">Hotel dashboard</a></nav><span class="pill">PayPal sandbox</span><span id="connection">Connecting…</span></div></header>
+<main>
+<section class="hero" style="min-height:0;padding:44px 0 26px"><div><p class="eyebrow">PIP INSTALL → PIP BUY · STAYS</p><h1 style="font-size:60px">You set the terms.<br><em>Hotels make offers.</em></h1><p class="intro">An empty room tonight is worth nothing tomorrow. Tell Pip the stay you want and what you'd pay.<br>Hotels answer with private offers that improve as check-in gets closer. You book when one fits.</p></div></section>
+<div class="demo-note"><b>A working sandbox, an imagined hotel market.</b> The three Lisbon hotels and their offers are simulated, and days pass on a demo clock. One test merchant accepts PayPal payments: every hold, charge, release and refund is a real PayPal sandbox call. No room is booked. <span id="ai-note">AI reading of your request is not connected.</span></div>
+<div id="error" class="error" role="alert" hidden></div>
+<div class="workspace">
+<section class="panel" id="setup"><div class="section-top"><span class="step">01</span><div><p class="eyebrow">YOUR REQUEST</p><h2>Where, when, and your limits.</h2></div></div>
+<form id="plan-form">
+<label for="request">What stay would you like?</label><textarea id="request" maxlength="2500" required>A weekend in Lisbon in about three weeks. Two nights for two people, with breakfast included. Show me the offer before I pay. No loyalty signup or marketing emails.</textarea><button type="button" id="interpret" hidden>Let Pip read this ↗</button><p class="hint" id="ai-hint">Fill in the details below yourself.</p><div id="ai-result" class="ai-result" hidden></div>
+<div class="form-grid"><div><label for="nights">Nights</label><input id="nights" type="number" min="1" max="7" step="1" value="2" required></div><div><label for="guests">Guests</label><input id="guests" type="number" min="1" max="4" step="1" value="2" required></div><div><label for="start">Check-in is in · days</label><input id="start" type="number" min="0" max="60" step="1" value="21" required><p class="hint">The demo clock starts here.</p></div><div></div></div>
+<fieldset><legend>Must-haves</legend><div id="musts" class="chips"></div></fieldset>
+<fieldset><legend>Hotels Pip may ask</legend><div id="hotels"></div></fieldset>
+<div class="form-grid"><div><label for="target">Good-deal target · USD, whole stay</label><input id="target" type="number" min="10" max="3000" step="0.01" value="400.00" required><p class="hint">At or below this, Pip says book.</p></div><div><label for="cap">Maximum · USD, whole stay</label><input id="cap" type="number" min="10" max="3000" step="0.01" value="460.00" required><p class="hint">Taxes included. Never exceeded.</p></div></div>
+<p class="hint">Neither number is ever sent to a hotel. You approve every payment yourself in PayPal.</p>
+<label class="choice confirmation"><input id="confirmed" type="checkbox" required><span>I approve these nights, guests, must-haves, hotels and my maximum for this one sandbox booking.</span></label>
+<button type="submit" class="primary">Create my request <span>↗</span></button>
+</form></section>
+<aside><section class="panel task-panel"><div class="section-top"><span class="step">02</span><div><p class="eyebrow">OFFERS AND PAYMENT</p><h2 id="task-heading">Ready when you are.</h2></div></div><div id="task"><p class="empty">Each round of offers appears here side by side, so you can watch them move against your target.</p><div class="principles"><p><span>01</span> Hotels never see your target or maximum.</p><p><span>02</span> Offers improve by each hotel's own rule.</p><p><span>03</span> Held, charged, released, refunded: every step is read back from PayPal.</p></div></div></section><section id="history-panel" class="panel" hidden><p class="eyebrow">THIS BROWSER SESSION</p><div id="history"></div></section></aside>
+</div><footer>pip buy · stays <span>Simulated hotels · real PayPal sandbox API</span></footer>
+</main><script src="/stay.js" defer></script></body></html>
