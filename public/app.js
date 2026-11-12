@@ -29,6 +29,7 @@ function render(t){current=t;window.history.replaceState({},'',`/?task=${t.id}`)
  if(['ready','awaiting_consent','quote_ready','awaiting_payment','no_offer'].includes(t.status))html+=btn('Cancel task','cancel');
  html+='</div>';
  if(t.rules.mode==='auto')html+='<p class="hint">Consent applies only to the connected sandbox merchant. The app stops after one purchase; any saved PayPal permission can remain in your PayPal account until you revoke it.</p>';
+ if(t.exchange?.length)html+=`<details><summary>The roaster's side: what each agent received and answered</summary><p class="hint">Your maximum, your target, your name and your email are never sent. A roaster sees a ready-to-buy request and answers from its own offer rule. Roasters are simulated.</p>${t.exchange.map(x=>`<div class="exchange"><h3>${esc(x.brandName)} agent · simulated</h3><small>RECEIVED FROM YOUR BUYER AGENT</small><pre>${esc(JSON.stringify(x.request,null,1))}</pre><small>ROASTER'S OWN OFFER RULE</small><p>${esc(x.roasterRule)}</p><small>ANSWERED</small><pre>${esc(JSON.stringify(x.reply,null,1))}</pre></div>`).join('')}</details>`;
  html+=`<details ${t.status==='purchased'?'open':''}><summary>Agent activity & payment evidence</summary><ol class="trace">${t.trace.map(e=>`<li><strong>${esc(e.actor)}</strong>${esc(e.text)}<br><time>${esc(e.at)}</time></li>`).join('')}</ol></details>`;
  $('#task').innerHTML=html;$('#task').querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>b.dataset.action==='checkout-link'?payLink(t.approveUrl):action(b.dataset.action));
 }

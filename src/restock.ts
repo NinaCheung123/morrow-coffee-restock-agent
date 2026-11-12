@@ -264,7 +264,22 @@ export class RestockService {
   }); }
 }
 
+/** The only message a roaster's agent receives. No name, email, payment maximum or target is shared. */
+export function quoteRequestFor(r: Rules, brandId: string) {
+  return { type: "quote_request", purchase: "one_time", subscription: false, marketingConsent: false,
+    buyer: "anonymous until an order is placed",
+    productIds: PRODUCTS.filter(p => p.brand === brandId && r.productIds.includes(p.id)).map(p => p.id),
+    quantity: r.quantity, deliverWithinDays: r.deliveryDays, region: r.region, currency: r.currency };
+}
+
 export function publicTask(t: Task) {
   const { owner, callbackState, setupTokenId, vaultId, vaultMerchantId, expectedPayeeId, ...view } = t;
-  return { ...view, consentSaved: Boolean(vaultId), environment: "sandbox", notification: "In-app receipt only; no push or marketing email integration" };
+  const exchange = t.quotes.map(q => {
+    const b = BRANDS.find(b => b.id === q.brandId)!;
+    return { brandName: q.brandName, simulated: true, request: quoteRequestFor(t.rules, q.brandId),
+      roasterRule: `One-time offer floor ${(b.floorCents / 100).toFixed(2)} USD per bag (list ${(PRODUCTS.find(p => p.brand === b.id)!.priceCents / 100).toFixed(2)}), shipping ${(b.shippingCents / 100).toFixed(2)}, tax ${(b.taxCentsPerBag / 100).toFixed(2)} per bag, ships in ${b.deliveryDays} days, only while stock covers the order.`,
+      reply: { type: "quote", lines: q.lines, subtotalCents: q.subtotalCents, shippingCents: q.shippingCents, taxCents: q.taxCents,
+        totalCents: q.totalCents, currency: q.currency, deliveryDays: q.deliveryDays, subscription: q.subscription, expiresAt: q.expiresAt } };
+  });
+  return { ...view, exchange, consentSaved: Boolean(vaultId), environment: "sandbox", notification: "In-app receipt only; no push or marketing email integration" };
 }

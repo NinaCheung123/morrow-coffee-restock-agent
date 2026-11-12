@@ -73,3 +73,11 @@ merchants, live payments, more than one category.
 
 Run instructions go in the README. A sandbox buyer login goes in Devpost's testing instructions field, never in the
 repository.
+
+## How the two agents talk
+
+- The buyer agent sends each approved roaster agent one `quote_request`: one-time purchase, no subscription, no marketing consent, approved product IDs for that roaster, quantity, deliver-within days, region and currency.
+- It never sends the buyer's name, email, good-deal target or payment maximum. A roaster can't price up to a limit it can't see. **[built]**
+- The roaster agent answers with one `quote`: lines, unit price, shipping, tax, total, delivery days, expiry, and `subscription: false`. It prices from its own offer rule (floor price, stock, delivery days). **[simulated: fixed rules, no real roaster]**
+- The app shows both messages and the roaster's rule under "The roaster's side" on every task.
+- Not built: a page where a real roaster signs in and edits its offer rule. That is the next step for the seller side.
