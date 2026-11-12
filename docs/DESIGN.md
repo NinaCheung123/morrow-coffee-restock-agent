@@ -81,3 +81,25 @@ repository.
 - The roaster agent answers with one `quote`: lines, unit price, shipping, tax, total, delivery days, expiry, and `subscription: false`. It prices from its own offer rule (floor price, stock, delivery days). **[simulated: fixed rules, no real roaster]**
 - The app shows both messages and the roaster's rule under "The roaster's side" on every task.
 - Not built: a page where a real roaster signs in and edits its offer rule. That is the next step for the seller side.
+
+## Next version: waiting, second rounds and several offers (designed, not built)
+
+**How a roaster's offer reaches the buyer agent**
+1. Hosted rule (first step): the roaster sets an offer rule on a seller page (floor price, stock, dates) and the platform runs its agent. No engineering needed from a small roaster.
+2. Own agent: a larger roaster connects its own endpoint that answers `quote_request` with `quote`.
+3. No connection: the buyer agent reads the public shop price as a reference only. A public price is never treated as an offer, and reading a shop is not consent to receive requests.
+
+**Waiting and second rounds**
+- A task stays open until the last day an order would still arrive in time (deliver-by date minus the roaster's shipping days).
+- The buyer agent asks again once a day, and a roaster may send an improved quote at any time, for example when a batch nears its roast date.
+- Every round sends the same request. The buyer's target and maximum are never revealed, and the buyer agent does not haggle.
+- The first quote that meets the target closes the task. Nothing is promised about a lower price later.
+- If the last day arrives with quotes under the maximum but above the target, the buyer is asked once. Above the maximum is never bought.
+
+**Several offers at once**
+- Every quote passes the same code checks. Among those that pass, the lowest total including tax and shipping wins.
+- Ties go to the earlier delivery, then to the fresher roast date.
+- A roaster that isn't chosen is told only "not selected". It never sees another roaster's price.
+- One order goes to one roaster. Splitting bags across roasters is out, because each adds its own shipping fee.
+
+All of this is **[assumed]** design. In the current build each approved roaster is asked once, and a task with no qualifying quote ends without buying.
