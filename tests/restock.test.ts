@@ -59,3 +59,24 @@ test("an unclear reading falls back to safe defaults", () => {
   assert.equal(s.quantity, 2);
   assert.equal(s.deliveryDays, 5);
 });
+
+import { resetOfferRules, roasterInbox, setOfferRule, quoteRequestFor } from "../src/restock.js";
+
+test("a roaster's new offer rule changes its next quote, and a bad rule is refused", () => {
+  resetOfferRules();
+  const before = requestQuotes(rules()).find(q => q.brandId === "morrow")!;
+  setOfferRule("morrow", { floorCents: 1400, shippingCents: 300, deliveryDays: 5, active: true });
+  const after = requestQuotes(rules()).find(q => q.brandId === "morrow")!;
+  assert.equal(after.totalCents, before.totalCents - 200);
+  assert.throws(() => setOfferRule("morrow", { floorCents: 2500, shippingCents: 300, deliveryDays: 5, active: true }));
+  assert.throws(() => setOfferRule("morrow", { floorCents: 1400, shippingCents: 300, deliveryDays: 90, active: true }));
+  setOfferRule("daybreak", { floorCents: 1600, shippingCents: 300, deliveryDays: 6, active: false });
+  assert.deepEqual(requestQuotes(rules()).map(q => q.brandId), ["morrow"]);
+  resetOfferRules();
+});
+
+test("the request a roaster receives never contains the buyer's target or maximum", () => {
+  const text = JSON.stringify(quoteRequestFor(rules({ targetCents: 3456, capCents: 4321 }), "morrow"));
+  assert.ok(!text.includes("3456") && !text.includes("4321") && !/target|cap|max/i.test(text));
+  assert.equal(roasterInbox([], "morrow").length, 0);
+});

@@ -14,6 +14,23 @@ export const PRODUCTS = [
   { id: "daybreak-house", brand: "daybreak", name: "Morning Roast", roast: "Medium-dark", grams: 250, notes: "Natural caramel & hazelnut tasting notes", ingredients: "100% coffee. No added flavorings or sugar.", priceCents: 2000, stock: 8 },
 ] as const;
 
+/** A roaster's own one-time offer rule. Editable on the simulated roaster console. */
+export interface OfferRule { floorCents: number; shippingCents: number; deliveryDays: number; active: boolean }
+const defaults = (): Record<string, OfferRule> => Object.fromEntries(BRANDS.map(b => [b.id, { floorCents: b.floorCents, shippingCents: b.shippingCents, deliveryDays: b.deliveryDays, active: true }]));
+let offerRules = defaults();
+export const getOfferRules = () => structuredClone(offerRules);
+export const resetOfferRules = () => { offerRules = defaults(); return getOfferRules(); };
+export function loadOfferRules(saved: unknown) { if (saved && typeof saved === "object") for (const b of BRANDS) { const r = (saved as any)[b.id]; if (r) try { setOfferRule(b.id, r); } catch { /* ignore a bad saved rule */ } } }
+export function setOfferRule(brandId: string, input: OfferRule) {
+  const b = BRANDS.find(b => b.id === brandId); if (!b) throw new RestockError("Unknown roaster");
+  const list = Math.min(...PRODUCTS.filter(p => p.brand === brandId).map(p => p.priceCents));
+  const r = { floorCents: Number(input?.floorCents), shippingCents: Number(input?.shippingCents), deliveryDays: Number(input?.deliveryDays), active: input?.active !== false };
+  if (!Number.isInteger(r.floorCents) || r.floorCents < 500 || r.floorCents > list) throw new RestockError(`Offer price must be between $5.00 and the list price of $${(list / 100).toFixed(2)} per bag.`);
+  if (!Number.isInteger(r.shippingCents) || r.shippingCents < 0 || r.shippingCents > 2000) throw new RestockError("Shipping must be between $0 and $20.");
+  if (!Number.isInteger(r.deliveryDays) || r.deliveryDays < 1 || r.deliveryDays > 30) throw new RestockError("Delivery must be 1 to 30 days.");
+  offerRules[brandId] = r; return structuredClone(r);
+}
+
 export interface Rules {
   request: string; mode: "confirm" | "auto"; brandIds: string[]; productIds: string[];
   quantity: number; targetCents: number; capCents: number; deliveryDays: number;
@@ -25,7 +42,7 @@ export interface Quote {
   subtotalCents: number; shippingCents: number; taxCents: number; totalCents: number;
   referenceTotalCents: number; referenceAt: string; source: "simulated-brand-agent";
   currency: "USD"; region: "US-CA"; deliveryDays: number; subscription: false;
-  issuedAt: string; expiresAt: string; reasons: string[]; qualifies: boolean; meetsTarget: boolean;
+  issuedAt: string; expiresAt: string; reasons: string[]; qualifies: boolean; meetsTarget: boolean; round?: number;
 }
 export type TaskStatus = "ready" | "awaiting_consent" | "quote_ready" | "awaiting_payment" | "creating_payment" | "capturing" | "verifying" | "purchased" | "cancelled" | "no_offer" | "needs_review";
 export interface Task {
@@ -34,7 +51,7 @@ export interface Task {
   quotes: Quote[]; selectedQuoteId?: string; setupTokenId?: string; consentUrl?: string;
   vaultId?: string; vaultMerchantId?: string; paymentOrderId?: string; approveUrl?: string;
   expectedPayeeId?: string; problem?: string; captureId?: string; paidCents?: number;
-  payeeId?: string; paypalStatus?: string; verifiedAt?: string; offSession?: boolean;
+  payeeId?: string; paypalStatus?: string; verifiedAt?: string; offSession?: boolean; round?: number;
 }
 export class RestockError extends Error {}
 
@@ -90,7 +107,8 @@ export function checkQuote(r: Rules, q: Quote, now = Date.now()): string[] {
 
 /** Two explicit simulated brand agents; prices always come from catalog/floor rules. */
 export function requestQuotes(r: Rules, now = Date.now()): Quote[] {
-  return BRANDS.filter(b => r.brandIds.includes(b.id)).flatMap(b => {
+  return BRANDS.filter(b => r.brandIds.includes(b.id) && offerRules[b.id].active).flatMap(b => {
+    const rule = offerRules[b.id];
     const products = PRODUCTS.filter(p => p.brand === b.id && r.productIds.includes(p.id) && p.stock >= r.quantity);
     if (!products.length) return [];
     const lines: Quote["lines"] = [];
@@ -98,16 +116,16 @@ export function requestQuotes(r: Rules, now = Date.now()): Quote[] {
       const p = products[n % products.length];
       const existing = lines.find(l => l.productId === p.id);
       if (existing) existing.quantity++;
-      else lines.push({ productId: p.id, name: p.name, quantity: 1, unitCents: b.floorCents });
+      else lines.push({ productId: p.id, name: p.name, quantity: 1, unitCents: rule.floorCents });
     }
     const subtotalCents = lines.reduce((s, l) => s + l.unitCents * l.quantity, 0);
     const taxCents = b.taxCentsPerBag * r.quantity;
     const q: Quote = { id: randomUUID(), brandId: b.id, brandName: b.name, connected: b.connected,
-      lines, subtotalCents, taxCents, shippingCents: b.shippingCents,
-      totalCents: subtotalCents + taxCents + b.shippingCents,
-      referenceTotalCents: lines.reduce((s, l) => s + PRODUCTS.find(p => p.id === l.productId)!.priceCents * l.quantity, 0) + taxCents + b.shippingCents,
+      lines, subtotalCents, taxCents, shippingCents: rule.shippingCents,
+      totalCents: subtotalCents + taxCents + rule.shippingCents,
+      referenceTotalCents: lines.reduce((s, l) => s + PRODUCTS.find(p => p.id === l.productId)!.priceCents * l.quantity, 0) + taxCents + rule.shippingCents,
       referenceAt: new Date(now).toISOString(), source: "simulated-brand-agent", currency: "USD", region: "US-CA",
-      deliveryDays: b.deliveryDays, subscription: false, issuedAt: new Date(now).toISOString(),
+      deliveryDays: rule.deliveryDays, subscription: false, issuedAt: new Date(now).toISOString(),
       expiresAt: new Date(now + 30 * 60_000).toISOString(), reasons: [], qualifies: true, meetsTarget: false,
     };
     q.reasons = checkQuote(r, q, now); q.qualifies = !q.reasons.length; q.meetsTarget = q.totalCents <= r.targetCents;
@@ -159,17 +177,18 @@ export class RestockService {
   }); }
   async scan(id: string) { return this.locked(id, async () => {
     let t = this.get(id);
-    if (t.status !== "ready") throw new RestockError("This task has already requested quotes or has ended.");
+    if (!["ready", "quote_ready", "no_offer"].includes(t.status)) throw new RestockError("This task is paying or has ended, so it can't ask again.");
+    t.round = (t.round ?? 0) + 1; delete t.selectedQuoteId;
     if (t.rules.mode === "auto" && !t.vaultId) throw new RestockError("Approve the merchant-scoped PayPal consent before automatic buying.");
-    this.trace(t, "Buyer agent", `Sent one structured request to ${t.rules.brandIds.length} approved demo roaster(s). No real brand was contacted.`);
-    t.quotes = requestQuotes(t.rules);
+    this.trace(t, "Buyer agent", `Round ${t.round}: sent the same structured request to ${t.rules.brandIds.length} approved demo roaster(s). Your target and maximum were not shared. No real brand was contacted.`);
+    t.quotes = requestQuotes(t.rules).map(q => ({ ...q, round: t.round }));
     for (const q of t.quotes) this.trace(t, `${q.brandName} agent · simulated`, `Returned a one-time, all-in quote from stock, price-floor and delivery rules. Valid until ${q.expiresAt}.`);
     const qualified = t.quotes.filter(q => q.qualifies).sort((a, b) => a.totalCents - b.totalCents || a.deliveryDays - b.deliveryDays || a.brandId.localeCompare(b.brandId));
     const winner = qualified.find(q => q.meetsTarget);
-    if (!qualified.length) { t.status = "no_offer"; this.trace(t, "Buyer agent", "No qualifying quote. No payment attempted; no full-price fallback."); }
+    if (!qualified.length) { t.status = "no_offer"; this.trace(t, "Buyer agent", "No qualifying quote this round. Nothing was bought. The task stays open and can ask again."); }
     else {
       t.status = "quote_ready"; t.selectedQuoteId = (winner ?? qualified[0]).id;
-      this.trace(t, "Buyer agent", winner ? "Found a quote meeting your target and all approved rules. No need to wait for a future lowest price." : "An eligible offer is above your target. Recommendation only; explicit confirmation is required.");
+      this.trace(t, "Buyer agent", winner ? "Found a quote meeting your target and all approved rules. No need to wait for a future lowest price." : "The best offer is under your maximum but above your target. You can wait and ask again, or approve it yourself.");
     }
     t = this.store.put(t);
     if (winner && t.rules.mode === "auto" && winner.connected && t.vaultMerchantId === winner.brandId) return this.beginPayment(t, winner, true);
@@ -277,9 +296,19 @@ export function publicTask(t: Task) {
   const exchange = t.quotes.map(q => {
     const b = BRANDS.find(b => b.id === q.brandId)!;
     return { brandName: q.brandName, simulated: true, request: quoteRequestFor(t.rules, q.brandId),
-      roasterRule: `One-time offer floor ${(b.floorCents / 100).toFixed(2)} USD per bag (list ${(PRODUCTS.find(p => p.brand === b.id)!.priceCents / 100).toFixed(2)}), shipping ${(b.shippingCents / 100).toFixed(2)}, tax ${(b.taxCentsPerBag / 100).toFixed(2)} per bag, ships in ${b.deliveryDays} days, only while stock covers the order.`,
+      roasterRule: `One-time offer ${(q.lines[0].unitCents / 100).toFixed(2)} USD per bag (list ${(PRODUCTS.find(p => p.brand === b.id)!.priceCents / 100).toFixed(2)}), shipping ${(q.shippingCents / 100).toFixed(2)}, tax ${(b.taxCentsPerBag / 100).toFixed(2)} per bag, ships in ${q.deliveryDays} days, only while stock covers the order.`,
       reply: { type: "quote", lines: q.lines, subtotalCents: q.subtotalCents, shippingCents: q.shippingCents, taxCents: q.taxCents,
         totalCents: q.totalCents, currency: q.currency, deliveryDays: q.deliveryDays, subscription: q.subscription, expiresAt: q.expiresAt } };
   });
   return { ...view, exchange, consentSaved: Boolean(vaultId), environment: "sandbox", notification: "In-app receipt only; no push or marketing email integration" };
+}
+
+/** What a roaster sees: anonymous requests, its own answers and the outcome. Never the buyer's identity, target or maximum. */
+export function roasterInbox(tasks: Task[], brandId: string) {
+  return tasks.filter(t => t.quotes.some(q => q.brandId === brandId)).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)).slice(0, 12).map(t => {
+    const q = t.quotes.find(q => q.brandId === brandId)!;
+    const outcome = t.status === "purchased" ? (t.selectedQuoteId === q.id ? "Order placed and paid" : "Not selected")
+      : t.status === "cancelled" ? "Buyer cancelled" : ["quote_ready", "no_offer", "ready"].includes(t.status) ? "Open: buyer has not bought yet" : "Buyer is paying";
+    return { receivedAt: q.issuedAt, round: q.round ?? 1, request: quoteRequestFor(t.rules, brandId), answeredTotalCents: q.totalCents, unitCents: q.lines[0]?.unitCents, deliveryDays: q.deliveryDays, outcome };
+  });
 }

@@ -16,6 +16,8 @@ Built for the Devpost hackathon "Build What's Next with PayPal and AI".
 | Roasters (Morrow Roasters, Daybreak Coffee), their products and prices | Fictional and simulated. Daybreak only quotes and has no payment connection. |
 | Roaster quotes | Produced by fixed rules (stock, price floor, tax, shipping, delivery days), not by a language model. |
 | Buying with the buyer absent | The app can ask PayPal to save a payment method for the connected merchant. See "Known limits". |
+| Roaster console (`/roaster.html`) | Simulated. Anyone can edit the two fictional roasters' offer rules and see the anonymous requests their agents received. A real console would need a roaster sign-in. |
+| Waiting and asking again | The buyer can ask the roasters again in a new round; the request is the same and the target and maximum are never sent. Automatic daily re-asking is not built. |
 | Notifications | In-app receipt only. No push, no email. |
 | Coffee | None is shipped. |
 

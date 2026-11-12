@@ -4,7 +4,8 @@ import { join } from "node:path";
 import express from "express";
 import { interpret, modelConfigured } from "./interpret.js";
 import { PayPalClient } from "./paypal.js";
-import { BRANDS, PRODUCTS, RestockError, RestockService, RestockStore, publicTask } from "./restock.js";
+import { readFileSync, writeFileSync } from "node:fs";
+import { BRANDS, PRODUCTS, RestockError, RestockService, RestockStore, getOfferRules, loadOfferRules, publicTask, resetOfferRules, roasterInbox, setOfferRule } from "./restock.js";
 
 if (existsSync(".env.sandbox")) process.loadEnvFile(".env.sandbox");
 const clientId = process.env.PAYPAL_SANDBOX_CLIENT_ID?.trim();
@@ -27,6 +28,15 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.static("public"));
+const offersPath = join(process.env.DATA_DIR ?? "data", "offer-rules.json");
+if (existsSync(offersPath)) try { loadOfferRules(JSON.parse(readFileSync(offersPath, "utf8"))); } catch { /* start from defaults */ }
+const saveOffers = () => writeFileSync(offersPath, JSON.stringify(getOfferRules()), { mode: 0o600 });
+const roasterView = () => BRANDS.map(b => ({ id: b.id, name: b.name, connected: b.connected, simulated: true,
+  listCents: Math.min(...PRODUCTS.filter(p => p.brand === b.id).map(p => p.priceCents)), taxCentsPerBag: b.taxCentsPerBag,
+  products: PRODUCTS.filter(p => p.brand === b.id).map(p => p.name), rule: getOfferRules()[b.id], inbox: roasterInbox(store.all(), b.id) }));
+app.get("/api/roasters", (_req, res) => { res.json(roasterView()); });
+app.post("/api/roasters/reset", (_req, res) => { resetOfferRules(); saveOffers(); res.json(roasterView()); });
+app.post("/api/roasters/:id", (req, res) => { setOfferRule(req.params.id, req.body); saveOffers(); res.json(roasterView()); });
 app.get("/healthz", (_req, res) => { res.json({ ok: true }); });
 let ping: { at: number; connected: boolean } | undefined;
 app.get("/api/config", async (_req, res) => {

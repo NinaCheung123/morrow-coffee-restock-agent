@@ -80,7 +80,8 @@ repository.
 - It never sends the buyer's name, email, good-deal target or payment maximum. A roaster can't price up to a limit it can't see. **[built]**
 - The roaster agent answers with one `quote`: lines, unit price, shipping, tax, total, delivery days, expiry, and `subscription: false`. It prices from its own offer rule (floor price, stock, delivery days). **[simulated: fixed rules, no real roaster]**
 - The app shows both messages and the roaster's rule under "The roaster's side" on every task.
-- Not built: a page where a real roaster signs in and edits its offer rule. That is the next step for the seller side.
+- A roaster console (`/roaster.html`) lets the simulated roaster edit its offer rule (price per bag, shipping, delivery days, on or off) and see the anonymous requests its agent received, what it answered and the outcome. **[built, simulated: no roaster sign-in]**
+- A task can ask again in a new round. Each round sends the same request, and the first quote that meets the target can be paid. **[built: the buyer presses "ask again"; a daily automatic re-ask is not built]**
 
 ## Next version: waiting, second rounds and several offers (designed, not built)
 
@@ -102,4 +103,4 @@ repository.
 - A roaster that isn't chosen is told only "not selected". It never sees another roaster's price.
 - One order goes to one roaster. Splitting bags across roasters is out, because each adds its own shipping fee.
 
-All of this is **[assumed]** design. In the current build each approved roaster is asked once, and a task with no qualifying quote ends without buying.
+Built so far: the hosted offer rule (simulated console), manual ask-again rounds, and lowest-total selection across roasters. Still **[assumed]** design: automatic daily re-asking, roaster-pushed quotes, the last-day question, roast-date tie-breaks, and telling a roaster "not selected" in real time.
