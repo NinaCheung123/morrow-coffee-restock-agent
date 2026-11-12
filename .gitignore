@@ -4,7 +4,7 @@
 __pycache__/
 sandbox-test-result.json
 .gate-state.json
-node_modules/
+node_modules
 dist/
 .DS_Store
 Three Rails*.md
