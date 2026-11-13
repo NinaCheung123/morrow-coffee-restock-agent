@@ -127,7 +127,7 @@ test("a quote-only hotel can't be booked, and a hotel's new rule changes only la
   const { service, id } = setup();
   const first = await service.ask(id);
   await assert.rejects(service.book(id));
-  setHotelRule("aurora", { floorCents: 12000, windowDays: 30, freeCancelDays: 3, active: true });
+  setHotelRule("aurora", { floorCents: 12000, windowDays: 30, freeCancelDays: 3, active: true, demand: "soft" });
   assert.equal(first.rounds[0].offers.find(o => o.hotelId === "aurora")!.totalCents, 46200);
   const next = await service.ask(id);
   assert.ok(next.rounds[1].offers.find(o => o.hotelId === "aurora")!.totalCents < 46200);
@@ -138,4 +138,38 @@ test("the AI reading for a stay is bounded in code and never carries a price", (
   const s = toStaySuggestion({ understood: "You want a quiet weekend.", nights: 30, guests: null, daysUntilCheckIn: 400, mustHaves: ["quiet", "quiet"], unsure: [] });
   assert.deepEqual([s.nights, s.guests, s.startDays, s.mustHaves], [7, 2, 60, ["quiet"]]);
   assert.ok(!("targetCents" in s) && !("capCents" in s));
+});
+
+test("with strong demand a hotel's rate climbs toward check-in, so waiting can cost money", () => {
+  resetHotelRules(); const tejo = HOTELS[2], rule = getHotelRules().tejo;
+  assert.equal(rule.demand, "strong");
+  assert.deepEqual([21, 10, 0].map(d => nightlyOfferCents(tejo.listCents, rule, d)), [23000, 24800, 26500]);
+});
+
+test("the buyer can choose any passing offer, but not one that fails a rule", async () => {
+  const { service, id } = setup();
+  let t = await service.ask(id, 11);
+  const offers = t.rounds.at(-1)!.offers, aurora = offers.find(o => o.hotelId === "aurora")!, tejo = offers.find(o => o.hotelId === "tejo")!;
+  assert.notEqual(t.selectedOfferId, aurora.id); assert.equal(aurora.qualifies, true);
+  t = await service.select(id, aurora.id);
+  assert.equal(t.selectedOfferId, aurora.id);
+  assert.equal(tejo.qualifies, false);
+  await assert.rejects(service.select(id, tejo.id));
+  await service.book(id);
+  assert.equal(service.store.get(id)!.bookedOffer!.hotelId, "aurora");
+});
+
+test("watching asks once a day, stops at the first offer that meets the target, and never books", async () => {
+  const { fake, service, id } = setup();
+  const t = await service.watch(id, 3);
+  assert.equal(t.daysToCheckIn, 7); assert.equal(t.status, "open"); assert.equal(fake.calls.create, 0);
+  assert.deepEqual([t.watch!.checks, t.watch!.hit, t.rounds.length], [14, true, 1]);
+  assert.equal(t.rounds[0].offers.find(o => o.hotelId === "aurora")!.totalCents, 39600);
+});
+
+test("watching stops on the buyer's stop day when nothing meets the target", async () => {
+  const { service, id } = setup(fakePayPal(), { targetCents: 30000 });
+  const t = await service.watch(id, 5);
+  assert.deepEqual([t.daysToCheckIn, t.watch!.hit, t.status], [5, false, "open"]);
+  await assert.rejects(service.watch(id, 9));
 });

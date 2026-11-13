@@ -24,19 +24,23 @@ export const CITY = "Lisbon";
 /** PayPal honors a hold for 3 days. A booking further out than that is paid at booking and refunded on cancellation. */
 export const HONOR_DAYS = 3;
 
-/** A hotel's private-offer rule: the public rate slides to the floor as check-in approaches. */
-export interface HotelRule { floorCents: number; windowDays: number; freeCancelDays: number; active: boolean }
+/**
+ * A hotel's private-offer rule. With soft demand (rooms still empty) the rate slides down to the floor as check-in
+ * approaches. With strong demand (rooms filling) it climbs to 15% above the public rate. Waiting is a bet, not a sure saving.
+ */
+export interface HotelRule { floorCents: number; windowDays: number; freeCancelDays: number; active: boolean; demand: "soft" | "strong" }
+export const STRONG_DEMAND_PEAK = 1.15;
 const defaultRules = (): Record<string, HotelRule> => ({
-  aurora: { floorCents: 15000, windowDays: 14, freeCancelDays: 3, active: true },
-  miradouro: { floorCents: 16500, windowDays: 10, freeCancelDays: 2, active: true },
-  tejo: { floorCents: 15500, windowDays: 21, freeCancelDays: 5, active: true },
+  aurora: { floorCents: 15000, windowDays: 14, freeCancelDays: 3, active: true, demand: "soft" },
+  miradouro: { floorCents: 16500, windowDays: 10, freeCancelDays: 2, active: true, demand: "soft" },
+  tejo: { floorCents: 15500, windowDays: 21, freeCancelDays: 5, active: true, demand: "strong" },
 });
 let hotelRules = defaultRules();
 export const getHotelRules = () => structuredClone(hotelRules);
 export const resetHotelRules = () => { hotelRules = defaultRules(); return getHotelRules(); };
 export function setHotelRule(hotelId: string, input: HotelRule) {
   const h = HOTELS.find(h => h.id === hotelId); if (!h) throw new StayError("Unknown hotel");
-  const r = { floorCents: Number(input?.floorCents), windowDays: Number(input?.windowDays), freeCancelDays: Number(input?.freeCancelDays), active: input?.active !== false };
+  const r = { floorCents: Number(input?.floorCents), windowDays: Number(input?.windowDays), freeCancelDays: Number(input?.freeCancelDays), active: input?.active !== false, demand: input?.demand === "strong" ? "strong" as const : "soft" as const };
   if (!Number.isInteger(r.floorCents) || r.floorCents < 5000 || r.floorCents > h.listCents) throw new StayError(`Lowest private rate must be between $50 and the public rate of $${h.listCents / 100} a night.`);
   if (!Number.isInteger(r.windowDays) || r.windowDays < 1 || r.windowDays > 60) throw new StayError("Discount window must be 1 to 60 days.");
   if (!Number.isInteger(r.freeCancelDays) || r.freeCancelDays < 0 || r.freeCancelDays > 30) throw new StayError("Free cancellation must be 0 to 30 days before check-in.");
@@ -50,7 +54,8 @@ export function loadHotelRules(saved: unknown) {
 export function nightlyOfferCents(listCents: number, rule: HotelRule, daysToCheckIn: number): number {
   if (daysToCheckIn >= rule.windowDays) return listCents;
   const used = (rule.windowDays - Math.max(0, daysToCheckIn)) / rule.windowDays;
-  return Math.round((listCents - (listCents - rule.floorCents) * used) / 100) * 100;
+  const end = rule.demand === "strong" ? Math.round(listCents * STRONG_DEMAND_PEAK) : rule.floorCents;
+  return Math.round((listCents + (end - listCents) * used) / 100) * 100;
 }
 
 export interface StayRules {
@@ -70,6 +75,7 @@ export interface StayTask {
   id: string; owner: string; callbackState: string; rules: StayRules; status: StayStatus; createdAt: string; updatedAt: string;
   daysToCheckIn: number; round: number; rounds: { round: number; daysToCheckIn: number; at: string; offers: Offer[] }[];
   selectedOfferId?: string; bookedOffer?: Offer; plan?: "hold" | "pay_now";
+  watch?: { fromDays: number; toDays: number; checks: number; hit: boolean; daily: { days: number; bestCents: number | null }[] };
   orderId?: string; approveUrl?: string; expectedPayeeId?: string; payeeId?: string; authorizationId?: string; captureId?: string;
   ledger: LedgerEvent[]; trace: { at: string; actor: string; text: string }[]; problem?: string;
 }
@@ -180,15 +186,56 @@ export class StayService {
       const before = t.daysToCheckIn; t.daysToCheckIn = Math.max(0, before - waitDays);
       this.trace(t, "Demo clock", `${before - t.daysToCheckIn} day(s) pass. Check-in is now ${t.daysToCheckIn} day(s) away. Nothing was bought while waiting.`);
     }
-    t.round += 1;
+    const ranked = this.record(t);
     this.trace(t, "Pip", `Round ${t.round}: sent the same request to ${t.rules.hotelIds.length} approved demo hotel(s). Your target and maximum were not shared.`);
-    const offers = requestOffers(t.rules, t.daysToCheckIn, t.round);
-    t.rounds.push({ round: t.round, daysToCheckIn: t.daysToCheckIn, at: new Date().toISOString(), offers });
-    const ranked = offers.filter(o => o.qualifies).sort((a, b) => a.totalCents - b.totalCents || b.freeCancelDays - a.freeCancelDays || a.hotelId.localeCompare(b.hotelId));
-    t.selectedOfferId = ranked[0]?.id;
     this.trace(t, "Pip", !ranked.length ? "No offer passed your rules this round. Nothing was booked."
       : ranked[0].meetsTarget ? `${ranked[0].hotelName} meets your target. It is the lowest total that passes every check.`
       : `Best offer is ${ranked[0].hotelName}, under your maximum but above your target. You can wait or book it yourself.`);
+    return this.store.put(t);
+  }); }
+
+  private quote(t: StayTask) {
+    const offers = requestOffers(t.rules, t.daysToCheckIn, t.round + 1);
+    const ranked = offers.filter(o => o.qualifies).sort((a, b) => a.totalCents - b.totalCents || b.freeCancelDays - a.freeCancelDays || a.hotelId.localeCompare(b.hotelId));
+    return { offers, ranked };
+  }
+  /** Ask once and keep the round. The lowest passing total is preselected; the buyer may choose another. */
+  private record(t: StayTask, q = this.quote(t)) {
+    t.round += 1;
+    t.rounds.push({ round: t.round, daysToCheckIn: t.daysToCheckIn, at: new Date().toISOString(), offers: q.offers });
+    t.selectedOfferId = q.ranked[0]?.id;
+    return q.ranked;
+  }
+
+  /** The buyer picks any offer from the latest round that passes every rule. */
+  async select(id: string, offerId: string) { return this.locked(id, async () => {
+    const t = this.get(id);
+    if (t.status !== "open") throw new StayError("This booking is no longer collecting offers.");
+    const o = t.rounds.at(-1)?.offers.find(o => o.id === offerId);
+    if (!o) throw new StayError("Choose an offer from the latest round.");
+    if (!o.qualifies) throw new StayError("That offer fails one of your rules: " + o.reasons.join("; "));
+    t.selectedOfferId = o.id;
+    this.trace(t, "You", `Chose ${o.hotelName} at ${(o.totalCents / 100).toFixed(2)} USD for the stay.`);
+    return this.store.put(t);
+  }); }
+
+  /**
+   * Pip asks once a day on the demo clock, and stops at the first offer that meets the target or on the stop day.
+   * It never books. Only the final round is kept on the board; the best total of each day is kept as a trend.
+   */
+  async watch(id: string, stopAtDays: number) { return this.locked(id, async () => {
+    const t = this.get(id);
+    if (t.status !== "open") throw new StayError("This booking is no longer collecting offers.");
+    if (!Number.isInteger(stopAtDays) || stopAtDays < 0 || stopAtDays >= t.daysToCheckIn) throw new StayError(`Choose a stop day between 0 and ${Math.max(0, t.daysToCheckIn - 1)} days before check-in.`);
+    const fromDays = t.daysToCheckIn; const daily: { days: number; bestCents: number | null }[] = []; let hit = false; let q = this.quote(t);
+    while (t.daysToCheckIn > stopAtDays && !hit) {
+      t.daysToCheckIn -= 1; q = this.quote(t);
+      daily.push({ days: t.daysToCheckIn, bestCents: q.ranked[0]?.totalCents ?? null });
+      hit = q.ranked.some(o => o.meetsTarget);
+    }
+    this.record(t, q);
+    t.watch = { fromDays, toDays: t.daysToCheckIn, checks: daily.length, hit, daily };
+    this.trace(t, "Pip", `Watched for ${daily.length} day(s) on the demo clock, asking once a day. ${hit ? `Stopped ${t.daysToCheckIn} day(s) before check-in: an offer meets your target.` : `Reached your stop day, ${stopAtDays} day(s) before check-in, without an offer meeting your target.`} Nothing was booked.`);
     return this.store.put(t);
   }); }
 

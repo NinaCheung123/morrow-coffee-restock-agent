@@ -20,16 +20,25 @@ const cancelText = p => !p ? '' : p.kind==='void' ? 'Cancelling now is free: the
 
 function board(t){
   if(!t.rounds.length) return '';
-  const best = t.selectedOfferId;
+  const best = t.selectedOfferId, rounds = t.rounds.slice(-5), latest = t.rounds.at(-1).round, open = t.status==='open';
   const hotels = config.hotels.filter(h=>t.rules.hotelIds.includes(h.id));
-  const cell = o => { if(!o) return '<td class="cell none">no offer</td>';
-    const cls = !o.qualifies ? 'out' : o.meetsTarget ? 'meets' : 'above';
-    return `<td class="cell ${cls} ${o.id===best?'best':''}" title="${esc(o.reasons.join(' · '))}"><b>${money(o.totalCents)}</b><small>${money(o.nightCents)} a night${o.discountPct?` · −${o.discountPct}%`:''}</small><small>${!o.qualifies?esc(o.reasons[0]):o.meetsTarget?'meets your target':'above your target'}</small><small>total for ${o.nights} night${o.nights>1?'s':''} with taxes</small></td>`; };
-  return `<div class="board-wrap"><table class="board"><thead><tr><th>Hotel<small>public rate</small></th>${t.rounds.map(r=>`<th>Round ${r.round}<small>${r.daysToCheckIn===0?'check-in day':days(r.daysToCheckIn)+' out'}</small></th>`).join('')}</tr></thead><tbody>${hotels.map(h=>`<tr><th>${esc(h.name)}<small>${money(h.listCents)} a night · ${h.connected?'payment connected':'quote only'}</small></th>${t.rounds.map(r=>cell(r.offers.find(o=>o.hotelId===h.id))).join('')}</tr>`).join('')}</tbody></table></div><p class="legend"><span class="key meets"></span>meets your ${money(t.rules.targetCents)} target <span class="key above"></span>under your ${money(t.rules.capCents)} maximum <span class="key out"></span>fails a rule · totals include taxes · your numbers are never sent to hotels</p>`;
+  const cell = (o,prev) => { if(!o) return '<td class="cell none">no offer</td>';
+    const cls = !o.qualifies ? 'out' : o.meetsTarget ? 'meets' : 'above', pick = open && o.round===latest && o.qualifies;
+    const d = prev ? o.totalCents-prev.totalCents : 0, move = !prev ? '' : d<0 ? `<small class="down">↓ ${money(-d)} since last round</small>` : d>0 ? `<small class="up">↑ ${money(d)} since last round</small>` : '<small>no change</small>';
+    return `<td class="cell ${cls} ${o.id===best?'best':''} ${pick?'pick':''}" ${pick?`data-offer="${o.id}" tabindex="0" role="button"`:''} title="${esc(o.reasons.join(' · '))}"><b>${money(o.totalCents)}</b><small>${money(o.nightCents)} a night${pct(o)}</small>${move}<small>${!o.qualifies?esc(o.reasons[0]):o.meetsTarget?'meets your target':'above your target'}</small><small>total for ${o.nights} night${o.nights>1?'s':''} with taxes</small></td>`; };
+  return `<div class="board-wrap"><table class="board"><thead><tr><th>Hotel<small>public rate</small></th>${rounds.map(r=>`<th>Round ${r.round}<small>${r.daysToCheckIn===0?'check-in day':days(r.daysToCheckIn)+' out'}</small></th>`).join('')}</tr></thead><tbody>${hotels.map(h=>`<tr><th>${esc(h.name)}<small>${money(h.listCents)} a night · ${h.connected?'payment connected':'quote only'}</small></th>${rounds.map((r,i)=>cell(r.offers.find(o=>o.hotelId===h.id), i>0?rounds[i-1].offers.find(o=>o.hotelId===h.id):t.rounds.find(x=>x.round===r.round-1)?.offers.find(o=>o.hotelId===h.id))).join('')}</tr>`).join('')}</tbody></table></div>${t.rounds.length>5?'<p class="hint">Showing the latest 5 rounds.</p>':''}${open?'<p class="hint"><b>Any offer in the latest round that passes your rules can be chosen.</b> Click it. Pip preselects the lowest total, and the choice is yours.</p>':''}${advice(t)}${trend(t)}<p class="legend"><span class="key meets"></span>meets your ${money(t.rules.targetCents)} target <span class="key above"></span>under your ${money(t.rules.capCents)} maximum <span class="key out"></span>fails a rule · totals include taxes · your numbers are never sent to hotels</p>`;
 }
+const pct = o => !o.discountPct ? '' : o.discountPct>0 ? ` · −${o.discountPct}%` : ` · +${-o.discountPct}%`;
+function advice(t){ if(t.rounds.length<2||t.status!=='open') return '';
+  const a=t.rounds.at(-2).offers, b=t.rounds.at(-1).offers; let down=0, up=0;
+  for(const o of b){const p=a.find(x=>x.hotelId===o.hotelId); if(!p)continue; if(o.totalCents<p.totalCents)down++; else if(o.totalCents>p.totalCents)up++;}
+  return `<p class="advice">Since the last round, ${down} hotel${down===1?'':'s'} lowered ${down===1?'its':'their'} offer and ${up} raised ${up===1?'it':'theirs'}. Waiting is a bet: a hotel with empty rooms cuts its rate, and one that is filling up raises it.</p>`; }
+function trend(t){ const w=t.watch; if(!w||!w.daily.length) return '';
+  const v=w.daily.filter(x=>x.bestCents!=null).map(x=>x.bestCents), lo=Math.min(...v), hi=Math.max(...v);
+  return `<p class="eyebrow" style="margin-top:14px">BEST PASSING OFFER, DAY BY DAY WHILE PIP WATCHED</p><div class="curve">${w.daily.map(x=>x.bestCents==null?`<div class="bar"><b>–</b><i style="height:6px"></i><small>${x.days}d</small></div>`:`<div class="bar"><b>${money(x.bestCents).replace(/\.\d\d$/,'')}</b><i class="${x.bestCents<=t.rules.targetCents?'hit':'cut'}" style="height:${Math.round(18+62*(hi===lo?1:(x.bestCents-lo)/(hi-lo)))}px"></i><small>${x.days}d</small></div>`).join('')}</div><p class="hint">Pip asked once a day for ${w.checks} day${w.checks===1?'':'s'} on the demo clock and ${w.hit?'stopped at the first offer that met your target':'reached your stop day without meeting your target'}. It did not book anything.</p>`; }
 function offerCard(t,o){
   return `<article class="quote selected"><div class="quote-head"><div><h3>${esc(o.hotelName)}</h3><p>Simulated hotel agent · ${o.connected?'connected test merchant':'quote only'} · round ${o.round}</p></div><strong>${money(o.totalCents)}</strong></div>
-  <div class="money-row"><span>Public rate</span><span>${money(o.listNightCents)} a night</span></div><div class="money-row"><span>Private offer for this request</span><span><b>${money(o.nightCents)} a night</b>${o.discountPct?` (−${o.discountPct}%)`:''}</span></div><div class="money-row"><span>${o.nights} night${o.nights>1?'s':''}</span><span>${money(o.subtotalCents)}</span></div><div class="money-row"><span>Taxes and fees</span><span>${money(o.taxCents)}</span></div>
+  <div class="money-row"><span>Public rate</span><span>${money(o.listNightCents)} a night</span></div><div class="money-row"><span>Private offer for this request</span><span><b>${money(o.nightCents)} a night</b>${o.discountPct?` (${o.discountPct>0?'−':'+'}${Math.abs(o.discountPct)}%)`:''}</span></div><div class="money-row"><span>${o.nights} night${o.nights>1?'s':''}</span><span>${money(o.subtotalCents)}</span></div><div class="money-row"><span>Taxes and fees</span><span>${money(o.taxCents)}</span></div>
   <p>Cancellation: free until ${days(o.freeCancelDays)} before check-in. After that the first night, ${money(o.lateFeeCents)}, is charged.<br>Offer valid until ${new Date(o.expiresAt).toLocaleTimeString()}. No loyalty signup, no marketing consent.</p><span class="tag">${o.meetsTarget?'Meets your target and passes every check':'Passes every check; above your target'}</span></article>`;
 }
 function payment(t){
@@ -53,15 +62,16 @@ function render(t){current=t;window.history.replaceState({},'',`/stay.html?task=
     else if(t.rounds.length)h+='<p class="problem">No offer passed your rules this round. Nothing was booked. Waiting may help: these hotels lower their private rates as check-in approaches.</p>';
     const d=t.daysToCheckIn, suggest=d>10?d-10:d>5?d-5:d>3?d-3:1;
     const wait=d>0&&t.rounds.length?`<span class="waitbox"><button ${o&&o.meetsTarget?'':'class="primary"'} data-action="wait">Wait and ask again ↗</button><label>days to wait <input id="wait-days" type="number" min="1" max="${d}" value="${suggest}"></label></span>`:'';
+    const watch=d>1&&t.rounds.length?`<span class="waitbox"><button data-action="watch">Watch daily for me ↗</button><label>stop <input id="watch-stop" type="number" min="0" max="${d-1}" value="${Math.min(3,d-1)}"> days before</label></span>`:'';
     h+='<div class="actions">';
     if(!t.rounds.length)h+=btn('Ask the hotels for offers ↗','ask',true);
     else if(o&&o.connected&&o.meetsTarget)h+=btn(`Book ${money(o.totalCents)} in PayPal ↗`,'book',true)+wait;
     else if(o&&o.connected)h+=wait+btn(`Book ${money(o.totalCents)} anyway in PayPal ↗`,'book',!wait);
     else h+=wait;
-    h+=btn('Cancel request','cancel')+'</div>';
+    h+=watch+btn('Cancel request','cancel')+'</div>';
     if(o&&!o.connected)h+=`<p class="hint">${esc(o.hotelName)} is quote-only in this demo, so it can't be booked. Only Casa Aurora has a PayPal test merchant.</p>`;
     if(o&&o.connected)h+=`<p class="hint"><b>If you book now:</b> ${esc(planText(t.planIfBookedNow,o))}</p>`;
-    if(t.rounds.length&&d>0)h+='<p class="hint">Waiting moves the demo clock forward and asks again. Nothing is bought while you wait.</p>';
+    if(t.rounds.length&&d>0)h+='<p class="hint"><b>Wait and ask again</b> moves the demo clock and asks once. <b>Watch daily</b> asks every day and stops at the first offer that meets your target, or on your stop day. Neither one books anything.</p>';
   }
   h+=payment(t);
   if(t.started){h+='<div class="actions">';
@@ -76,9 +86,10 @@ function render(t){current=t;window.history.replaceState({},'',`/stay.html?task=
   if(t.rounds.length)h+=`<details><summary>What each hotel received</summary><p class="hint">Every hotel gets the same request each round. It has no name, no email, no target and no maximum.</p><pre class="exchange-pre">${esc(JSON.stringify(t.request,null,1))}</pre></details>`;
   h+=`<details><summary>Activity log</summary><ol class="trace">${t.trace.map(e=>`<li><strong>${esc(e.actor)}</strong>${esc(e.text)}<br><time>${esc(e.at)}</time></li>`).join('')}</ol></details>`;
   $('#task').innerHTML=h;
+  $('#task').querySelectorAll('[data-offer]').forEach(c=>{const go=()=>busy(async()=>{current=await api(`/api/stays/${t.id}/select`,{offerId:c.dataset.offer});render(current);});c.onclick=go;c.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}};});
   $('#task').querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>{const a=b.dataset.action;
     if(a==='approve-link')return payLink(t.approveUrl);
-    busy(async()=>{const body=a==='wait'?{waitDays:Number($('#wait-days').value)}:a==='advance'?{days:Number($('#adv-days').value)}:{};
+    busy(async()=>{const body=a==='wait'?{waitDays:Number($('#wait-days').value)}:a==='advance'?{days:Number($('#adv-days').value)}:a==='watch'?{stopAtDays:Number($('#watch-stop').value)}:{};
       const path=a==='wait'?'ask':a; current=await api(`/api/stays/${t.id}/${path}`,body);render(current);await loadHistory();
       if(a==='book'&&current.approveUrl)payLink(current.approveUrl);});});
 }

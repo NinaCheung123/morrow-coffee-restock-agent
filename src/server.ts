@@ -129,6 +129,8 @@ app.use("/api/stays/:id", (req, res, next) => {
 });
 app.get("/api/stays/:id", (req, res) => { res.json(publicStay(stayStore.get(req.params.id)!)); });
 app.post("/api/stays/:id/ask", async (req, res) => { res.json(publicStay(await stays.ask(req.params.id, Number(req.body?.waitDays ?? 0)))); });
+app.post("/api/stays/:id/select", async (req, res) => { res.json(publicStay(await stays.select(req.params.id, String(req.body?.offerId ?? "")))); });
+app.post("/api/stays/:id/watch", async (req, res) => { res.json(publicStay(await stays.watch(req.params.id, Number(req.body?.stopAtDays)))); });
 app.post("/api/stays/:id/book", async (req, res) => { res.json(publicStay(await stays.book(req.params.id))); });
 app.post("/api/stays/:id/check", async (req, res) => { res.json(publicStay(await stays.finishApproval(req.params.id))); });
 app.post("/api/stays/:id/advance", async (req, res) => { res.json(publicStay(await stays.advance(req.params.id, Number(req.body?.days)))); });
